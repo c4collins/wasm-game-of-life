@@ -27,7 +27,8 @@ console_error_panic_hook = { version = "0.1.1", optional = true }
 wee_alloc = { version = "0.4.2", optional = true }
 
 js-sys = "0.3" # JS functions for bindgen
-fixedbitset = "0.2" # using bits rather than bytes (why not bools?)
+web-sys = { version = "0.3", features = ["console"] } # Web features for wasm
+fixedbitset = "0.2" # Better than bytes
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2"
@@ -37,9 +38,3 @@ wasm-bindgen-test = "0.2"
 opt-level = "s"
 # include debug symbols (turn this off for actual shipping prod)
 debug = true
-
-[dependencies.web-sys]
-version = "0.3"
-features = [
-  "Window", "console"
-]
