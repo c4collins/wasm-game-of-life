@@ -27,6 +27,7 @@ enum UniverseContents {
     Spaceship = 3,
 }
 
+#[wasm_bindgen]
 pub enum UniverseObjects {
     None = 0,
     Spaceship = 1,
@@ -85,6 +86,23 @@ fn build_cells(
     new_cells
 }
 
+pub struct Timer<'a> {
+    name: &'a str,
+}
+
+impl<'a> Timer<'a> {
+    pub fn new(name: &'a str) -> Timer<'a> {
+        console::time_with_label(name);
+        Timer { name }
+    }
+}
+
+impl<'a> Drop for Timer<'a> {
+    fn drop(&mut self) {
+        console::time_end_with_label(self.name);
+    }
+}
+
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct Universe {
@@ -99,8 +117,8 @@ impl Universe {
         // Setup panic logging
         utils::set_panic_hook();
 
-        let width = 80;
-        let height = 64;
+        let width = 256;
+        let height = 201;
 
         let size = (width * height) as usize;
         let bitset = FixedBitSet::with_capacity(size);
@@ -133,37 +151,45 @@ impl Universe {
     }
 
     pub fn tick(&mut self) {
-        let mut next = self.cells.clone();
-        for row in 0..self.height {
-            for col in 0..self.width {
-                let idx = self.get_index(row, col);
-                let cell = self.cells[idx];
-                let live_neighbours = self.live_neighbour_count(row, col);
+        let _timer = Timer::new("Universe::tick");
+        let mut next = {
+            let _timer = Timer::new("allocate new cells");
+            self.cells.clone()
+        };
+        {
+            let _timer = Timer::new("new generation");
+            for row in 0..self.height {
+                for col in 0..self.width {
+                    let idx = self.get_index(row, col);
+                    let cell = self.cells[idx];
+                    let live_neighbours = self.live_neighbour_count(row, col);
 
-                next.set(
-                    idx,
-                    match (cell, live_neighbours) {
-                        // Rule 1: Any live cell with fewer than two neighbours dies
-                        // Rule 3: Any live cell with more than 3 neighbours dies
-                        (true, x) if x < 2 || x > 3 => {
-                            // log!("{} is dying", idx);
-                            false
-                        }
-                        // Rule 2: Any live cell with 2 or 3 neighbours lives on
-                        // (true, 2) | (true, 3) => true,
-                        // Rule 3: Any live cell with more than 3 neighbours dies
-                        // (true, x) if x > 3 => false,
-                        // Rule 4: Any dead cell with exactly 3 live neighbours becomes alive
-                        (false, 3) => {
-                            // log!("{} is coming to life", idx);
-                            true
-                        }
-                        // Everything else stays as is (i.e. dead)
-                        (otherwise, _) => otherwise,
-                    },
-                );
+                    next.set(
+                        idx,
+                        match (cell, live_neighbours) {
+                            // Rule 1: Any live cell with fewer than two neighbours dies
+                            // Rule 3: Any live cell with more than 3 neighbours dies
+                            (true, x) if x < 2 || x > 3 => {
+                                // log!("{} is dying", idx);
+                                false
+                            }
+                            // Rule 2: Any live cell with 2 or 3 neighbours lives on
+                            // (true, 2) | (true, 3) => true,
+                            // Rule 3: Any live cell with more than 3 neighbours dies
+                            // (true, x) if x > 3 => false,
+                            // Rule 4: Any dead cell with exactly 3 live neighbours becomes alive
+                            (false, 3) => {
+                                // log!("{} is coming to life", idx);
+                                true
+                            }
+                            // Everything else stays as is (i.e. dead)
+                            (otherwise, _) => otherwise,
+                        },
+                    );
+                }
             }
         }
+        let _timer = Timer::new("free old cells");
         self.cells = next;
     }
 
@@ -199,19 +225,38 @@ impl Universe {
         (row * self.width + column) as usize
     }
 
-    fn live_neighbour_count(&self, row: u32, column: u32) -> u8 {
+    fn live_neighbour_count(&self, row: u32, col: u32) -> u8 {
         let mut count = 0;
-        for delta_row in [self.height - 1, 0, 1].iter().cloned() {
-            for delta_col in [self.width - 1, 0, 1].iter().cloned() {
-                if delta_col == 0 && delta_row == 0 {
-                    continue;
-                }
-                let neighbour_row = (row + delta_row) % self.height;
-                let neighbour_col = (column + delta_col) % self.width;
-                let idx = self.get_index(neighbour_row, neighbour_col);
-                count += self.cells[idx] as u8;
-            }
-        }
+
+        let north = if row == 0 { self.height - 1 } else { row - 1 };
+        let south = if row == self.height - 1 { 0 } else { row + 1 };
+        let west = if col == 0 { self.width - 1 } else { col - 1 };
+        let east = if col == self.width - 1 { 0 } else { col + 1 };
+
+        let nw = self.get_index(north, west);
+        count += self.cells[nw] as u8;
+
+        let n = self.get_index(north, col);
+        count += self.cells[n] as u8;
+
+        let ne = self.get_index(north, east);
+        count += self.cells[ne] as u8;
+
+        let w = self.get_index(row, west);
+        count += self.cells[w] as u8;
+
+        let e = self.get_index(row, east);
+        count += self.cells[e] as u8;
+
+        let sw = self.get_index(south, west);
+        count += self.cells[sw] as u8;
+
+        let s = self.get_index(south, col);
+        count += self.cells[s] as u8;
+
+        let se = self.get_index(south, east);
+        count += self.cells[se] as u8;
+
         count
     }
 }
@@ -310,6 +355,7 @@ impl Universe {
 
     fn create_spaceship(&mut self, row: u32, col: u32) {
         // TODO :: Not used, no code; can get called by create_object, but nothing triggers that match
+        println!("I need to write the code to create a spaceship because you intended to have a spaceship appear at ({},{}), but nothing happened", row, col);
     }
 
     pub fn set_cells(&mut self, cells: &[(u32, u32)]) {
